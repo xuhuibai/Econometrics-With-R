@@ -1,0 +1,75 @@
+---
+title: "Problem Set 3 - Question 5"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+remove(list = ls())
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org") # run this the first time (only need to once)
+  library(tidyverse) # includes ggplot2 and many more useful libraries
+if(!require(knitr)) install.packages("knitr", repos = "http://cran.us.r-project.org")
+  library(knitr)
+if(!require(sandwich)) install.packages("sandwich", repos = "http://cran.us.r-project.org")
+  library(sandwich)
+if(!require(lmtest)) install.packages("lmtest", repos = "http://cran.us.r-project.org")
+  library(lmtest)
+if(!require(car)) install.packages("car", repos = "http://cran.us.r-project.org")
+  library(car)
+Earnings_and_Height<-read_csv("Earnings_and_Height.csv")
+```
+
+## a.
+The estimated slope will be too large. As the value of β in the regresion is determined by its true value and the correlation coefficient between X and error, we need to figure out the correlation between Height and Cognitive Ability to determine the direction of bias.
+In this case, Height and Cognitive Ability is positively correlated: both factors are affected in the same way by the environmental factors in utero. And Cognitive Ability has positive effect on the Earning: The more intellegent the more earning. So the correlation coefficient between Height and Cognitive Ability is positive, and the estimate of β is larger than its real value, leading to larger slpoe.
+
+# b.
+```{r}
+x <- Earnings_and_Height %>% mutate(LT_HS = ifelse(educ<12, 1, 0))
+y <- x %>% mutate(HS = ifelse(educ==12, 1, 0))
+z <- y %>% mutate(Some_Col = ifelse(educ>12 & educ<16, 1, 0))
+Earnings_and_Height_and_Edu <- z %>% mutate(College = ifelse(educ>=16, 1, 0))
+
+female <- Earnings_and_Height_and_Edu %>% filter(sex == "0:female") 
+reg_height <- lm(earnings~height, data = female)
+coeftest(reg_height, vcov = vcovHC(reg_height, type = "HC1"))
+reg_height_edu <- lm(earnings~height+LT_HS+HS+Some_Col, data = female)
+coeftest(reg_height_edu , vcov = vcovHC(reg_height_edu, type = "HC1"))
+
+```
+  i. The change in coefficients is big. After adding the control variables into the regression, the intercept raised by about 4 times, from 12560.858 to 50749.522, and the coefficient on height dropped from 511.222 to 135.142. 
+It is consistent with the cognitive ability explanation: as the year of education increase, the average earning is closer to the intercept, which is the average income of people who completed college and is higher than the income of any other groups.
+
+  ii. The variable of College is linear to other three variables: LT_HS, HS, and Some_Col, that is, when the three variables are all zero, the value of College must be 1. It can be presented as: College = 1 + LT_HS + HS + Some_Col
+If we contain College in the regression, the issue of perfect multicollinearity would occur.
+```{r}
+linearHypothesis(reg_height_edu, c("LT_HS=0", "HS=0", "Some_Col=0"), white.adjust = "hc1")
+```
+
+  iii. F-stat is 577.93, which is larger than the 1% critical value of 3.78 (from the F3,∞ distribution), and therefore the null hypothesis that the coefficients on he education variables are jointly equal to zero is rejected at the 1% significance level.
+
+  iv. All the three coefficients measures the effect of different education on females' earning. So, the coefficient on LT_HS means the people who took education for less than 12 years will earn $31858 less than those who have college degree, and higher education indicates less negative income gap relative to college graduates (for HS, $20418 less than College, and for Some_Col, $12649 less than college)
+  
+
+# c.
+```{r}
+male <- Earnings_and_Height_and_Edu %>% filter(sex == "1:male") 
+reg_height2 <- lm(earnings~height, data = male)
+coeftest(reg_height2, vcov = vcovHC(reg_height2, type = "HC1"))
+reg_height_edu2 <- lm(earnings~height+LT_HS+HS+Some_Col, data = male)
+coeftest(reg_height_edu2 , vcov = vcovHC(reg_height_edu2, type = "HC1"))
+
+```
+
+  i. The estimated coefficient on height drops from 1307 to 745, which is consistent with positive omitted bias in the simple regression (1).
+  
+  ii. The answer is the same to above (ii)
+  
+```{r}
+linearHypothesis(reg_height_edu2, c("LT_HS=0", "HS=0", "Some_Col=0"), white.adjust = "hc1")
+```
+  iii. F-stat is 500.92, which is larger than the 1% critical value of 3.78 (from the F3,∞ distribution), and therefore the null hypothesis that the coefficients on he education variables are jointly equal to zero is rejected at the 1% significance level.
+  
+  iv. All the three coefficients measures the effect of different education on males' earning. So, the coefficient on LT_HS means the people who took education for less than 12 years will earn $31400 less than those who have college degree, and higher education indicates less negative income gap relative to college graduates. (for HS, $20345 less than College, and for Some_Col, $12610 less than college)

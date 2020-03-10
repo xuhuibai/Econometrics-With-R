@@ -1,0 +1,135 @@
+---
+title: "Problem Set 3 - Question 6"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+remove(list = ls())
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org") # run this the first time (only need to once)
+  library(tidyverse) # includes ggplot2 and many more useful libraries
+if(!require(knitr)) install.packages("knitr", repos = "http://cran.us.r-project.org")
+  library(knitr)
+if(!require(sandwich)) install.packages("sandwich", repos = "http://cran.us.r-project.org")
+  library(sandwich)
+if(!require(lmtest)) install.packages("lmtest", repos = "http://cran.us.r-project.org")
+  library(lmtest)
+if(!require(car)) install.packages("car", repos = "http://cran.us.r-project.org")
+  library(car)
+if(!require(ggplot2)) install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+  library(ggplot2)
+lead_mortality <- read_csv("lead_mortality.csv")
+```
+
+## a.
+```{r}
+lead <- lead_mortality %>% filter(lead == 1)
+nonlead <- lead_mortality %>% filter(lead == 0) 
+mean_lead <- round(mean(lead$infrate),3)
+mean_nonlead <- round(mean(nonlead$infrate),3)
+t.test(lead$infrate, nonlead$infrate, paired = FALSE, alternative = "two.sided", var.equal = FALSE)
+```
+To determine if there is a statistically significant difference in the averages, we need to conduct a two-sample t-test on the averages, setting 
+$$ H0: mean(lead) = mean(nonlead)$$
+$$ HA: mean(lead) ≠ mean(nonlead) $$
+According to above summary of t-test, the t-stat is 0.90387, which is less than the critical value, 1.96, at the 5% significance level. Therefore, there is no statistically significant difference in the averages.
+
+## b.
+# i.
+```{r}
+reg1 <- lm(infrate~lead + ph + lead*ph, data = lead_mortality)
+coeftest(reg1, vcov = vcovHC(reg1, type = "HC1"))
+```
+
+the regression result is 
+$$ \widehat{Infrate} = \underset{(0.15)}{0.919} + \underset{(0.208)}{0.462} \times lead - \underset{(0.021)}{0.075} \times ph - \underset{(0.028)}{0.057} \times (lead*ph) $$
+The intercept, 0.919, indicates that the level of infrate when both lead and ph are zero. 
+The coefficient on lead,  0.462, and on lead*ph, -0.057, measure the effect of lead pipe on infrate. Holding ph constant, the infrate of city having lead pipe will be 0.462 - 0.057ph higher(or lower) than that of city without lead pipe.
+The coefficient on ph, -0.075, companied with the last coefficient, -0.057, measure the effect of ph level on infrate in a city. For each additional ph of the water, the city will have a change of -0.075 + (-0.057)*lead on its infrate. If the city has lead pipe, the change will be -0.132; if not, it will be -0.075.
+
+# ii.
+```{r}
+ggplot(data = lead_mortality, 
+       aes(x = ph, y = infrate, group = lead, colour = lead)) + geom_smooth(method = "lm", se=FALSE) + guides(colour = FALSE)
+```
+
+Blue: Lead Pipes
+
+Black: No-lead Pipes
+
+Cities using lead pipes have higher infant mortality than those without lead pipes, but the difference declines as the ph increase. When ph > 8.2(approximately), the non-lead pipes are more likely to cause higher infant mortality. According to i, the coefficients on ph is negative, which means the infant mortality would decline as the ph increases, holding others constant. So both lines are going downwards. Besides, the coefficient on the interaction between ph and lead is also negative, which means the high level of ph may inhibit the release of lead from pipe to water, and, thus, the harm of lead is weaken. That’s why the infant mortality in cities with lead pipes is lower than that in cities without lead pipes when the ph is extremely high.
+
+# iii
+```{r}
+lead_mortality2 <- lead_mortality %>% mutate(LeadPh = lead * ph)
+reg2 <- lm(infrate~lead + ph + LeadPh, data = lead_mortality2)
+linearHypothesis(reg2, c("lead=0", "LeadPh=0"), white.adjust = "hc1")
+```
+To test the effect of lead on infant mortality, we need to use F-test to test lead and the interaction term simultaneously. The F-statistic for the coefficient on lead and the interaction term is F = 3.94, so the coefficients are jointly statistically significantly different from zero at the 5% (F(2, ∞) = 3) but not the 1% (F(2, ∞) = 4.61) significance level.
+
+# iv.
+We need to conduct t-test on the interaction term.
+According to i, the interaction term has a t-value of -2.02, so the coefficient is significant at the 5% but not the 1% significance level.
+
+# v.
+```{r}
+mean_ph <- mean(lead_mortality$ph)
+effect_of_lead <- coef(reg1)[2]*1 + coef(reg1)[4]*1*mean_ph
+effect_of_lead
+sd_ph <- sd(lead_mortality$ph)
+effect_of_lead_low_1sd <- coef(reg1)[2]*1 + coef(reg1)[4]*1*(mean_ph - sd_ph)
+effect_of_lead_high_1sd <- coef(reg1)[2]*1 + coef(reg1)[4]*1*(mean_ph + sd_ph)
+effect_of_lead_low_1sd
+effect_of_lead_high_1sd
+```
+The mean of ph is 7.3227, at this level, the difference in infant mortality rates is 0.0454.
+The standard devation of ph is 0.69. When ph is 1 sd lower than the mean, the difference is 0.085;
+when ph is 1 sd higher than the mean, the difference is 0.00608.
+
+
+# vi.
+```{r}
+lead_mortality3 <- lead_mortality2 %>% mutate(k = LeadPh-6.5*lead)
+reg3 <- lm(infrate~lead+ph+k, data = lead_mortality3)
+homo<-confint(reg3,parm = 2)
+rob_se_1 <- diag(vcovHC(reg3, type = "HC1"))^0.5
+heter <- rbind("lower" = coef(reg3) - qnorm(0.975) * rob_se_1,
+      "upper" = coef(reg3) + qnorm(0.975) * rob_se_1)
+homo
+heter[,2]
+```
+We are constructing confidence interval for β1 + β3*6.5. So, we can re-write the regression formula as:
+$$ Infrate = \beta_0 + (\beta_1 + 6.5\beta_3)lead + \beta_2ph + \beta_3(lead*ph - 6.5lead) + u $$
+So, we can construct the confidence interval by using the summary of the new regression above. The interval generated by function "confint" is (0.0305, 0.154), using homoscedastic only standard errors. If we use heteroskedastic robust standard errors, the confidence level is (0.028, 0.157)
+
+
+# c.
+```{r}
+reg4 <- lm(infrate~
+             age
+           +hardness
+           +ph
+           +typhoid_rate
+           +np_tub_rate
+           +mom_rate
+           +population
+           +precipitation
+           +temperature
+           +lead
+           +foreign_share
+           +LeadPh, data = lead_mortality2)
+linearHypothesis(reg4, c("lead=0", "ph=0", "LeadPh=0"), white.adjust = "hc1")
+
+```
+By adding all other variables into the regression, the f-test testing the effect of lead, ph, and their interaction, indicates that these three coefficients are still statistically significant (6.7395 > 3.78). However, the absolute value of three coefficients is smaller than that in privious regression, which indicates that analysis in (b) may suffer from omitted variable bias. 
+
+Changes of Coefficients:
+
+Coefficient on lead: from -0.462 to -0.406
+
+Coefficient on ph: from -0.075 to -0.029
+
+Coefficient on interaction term: from -0.057 to 0.052
+
+The omitted variables may correlated with lead, ph, and interaction term, and, therefore, make the coefficients in previous regression inaccurate.
+
