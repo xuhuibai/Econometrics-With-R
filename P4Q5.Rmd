@@ -1,0 +1,114 @@
+---
+title: "Problem Set 4 - Question 5"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+remove(list = ls())
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org") # run this the first time (only need to once)
+  library(tidyverse) # includes ggplot2 and many more useful libraries
+if(!require(knitr)) install.packages("knitr", repos = "http://cran.us.r-project.org")
+  library(knitr)
+if(!require(sandwich)) install.packages("sandwich", repos = "http://cran.us.r-project.org")
+  library(sandwich)
+if(!require(lmtest)) install.packages("lmtest", repos = "http://cran.us.r-project.org")
+  library(lmtest)
+if(!require(car)) install.packages("car", repos = "http://cran.us.r-project.org")
+  library(car)
+if(!require(plm)) install.packages("plm", repos = "http://cran.us.r-project.org")
+  library(plm)
+guns<-read_csv("guns.csv")
+```
+
+# a. Estimate (1) a regression of ln(vio) against shall and (2) a regression of ln(vio) against shall,incarc_rate, density,avginc,pop,pb1064,pw1064, and pm1029.
+
+
+```{r}
+guns$ln_vio <- log(guns$vio)
+reg1 <- lm(ln_vio~shall, data = guns)
+summary(reg1)
+
+reg2 <- lm(ln_vio~shall+incarc_rate+density+avginc+pop+pb1064+pw1064+pm1029, data = guns)
+summary(reg2)
+```
+i.
+In regression reg2, the coefficient on shall means that for the states that have a shall-carry law in effect, the violent crime rate is expected to decline by 36.84%, holding other factors constant. In real world, it seems a large effect.
+
+ii.
+The coefficient on shall changed from 0.44 to 0.368, and both coefficient values are statistically significant. So, the introduction of control variables diminished the estimated effect of a shall-issue law in regression.
+
+iii.
+Quality of social security
+
+# b. Do the results change when you add fixed state effects? If so, which set of regression results is more credible, and why?
+
+```{r}
+reg3 <- plm(ln_vio~shall+incarc_rate+density+avginc+pop+pb1064+pw1064+pm1029, data = guns, index = c("stateid"), model = "within")
+summary(reg3)
+coeftest(reg3, vcovHC(reg3, type = 'HC1', cluster = 'group'))
+fixef(reg3)
+```
+With fixed state effect added, the coefficient on shall changed to -0.046. Useing heteroskedasticity-robust standard errors, we found that the coefficient, whose t-value is - 1.16, is not statistically different from 0. This result proved that the previous regression suffers from omitted variable bias. Therefore, the regression with fixed state effects is more credible.
+
+# c.
+Do the results change when you add fixed time effects? If so, which set of regression results is more credible, and why?
+
+```{r}
+reg4 <- plm(ln_vio~shall+incarc_rate+density+avginc+pop+pb1064+pw1064+pm1029+factor(year), data = guns, index = c("stateid", "year"), model = "within")
+summary(reg4)
+coeftest(reg4, vcovHC(reg3, type = 'HC1', cluster = 'group'))
+state_c_vcov.4<-vcovHC(reg4, type = "HC1", cluster = "group")
+linearHypothesis(reg4, c("factor(year)78=0","factor(year)79=0","factor(year)80=0","factor(year)81=0","factor(year)82=0","factor(year)83=0","factor(year)84=0","factor(year)85=0","factor(year)86=0","factor(year)87=0","factor(year)88=0","factor(year)89=0","factor(year)90=0","factor(year)91=0","factor(year)92=0","factor(year)93=0","factor(year)94=0","factor(year)95=0","factor(year)96=0","factor(year)97=0","factor(year)98=0","factor(year)99=0"), vcov=state_c_vcov.4, white.adjust="hc1", test=c("F"))
+```
+The coefficient on shall further changed to -0.028. According to the result of t-test with heteroskedasticity-robust standard errors, this coefficient is not significantly different from 0. The coefficient on time variables are jointly statistically significant, so this model is better.
+
+  
+
+# d. Repeat the analysis using ln(rob) and ln(mur) in place of ln(vio).
+```{r}
+#for ln(rob)
+guns$ln_rob <- log(guns$rob)
+guns$ln_mur <- log(guns$mur)
+reg5 <- lm(ln_rob~shall, data = guns)
+reg6 <- lm(ln_rob~shall+incarc_rate+density+avginc+pop+pb1064+pw1064+pm1029, data = guns)
+reg7 <- plm(ln_rob~shall+incarc_rate+density+avginc+pop+pb1064+pw1064+pm1029, data = guns, index = c("stateid"), model = "within")
+reg8 <- plm(ln_rob~shall+incarc_rate+density+avginc+pop+pb1064+pw1064+pm1029+factor(year), data = guns, index = c("stateid", "year"), model = "within")
+coeftest(reg5, vcovHC(reg5, type = 'HC1', cluster = 'group'))
+coeftest(reg6, vcovHC(reg6, type = 'HC1', cluster = 'group'))
+coeftest(reg7, vcovHC(reg7, type = 'HC1', cluster = 'group'))
+coeftest(reg8, vcovHC(reg8, type = 'HC1', cluster = 'group'))
+state_c_vcov.8<-vcovHC(reg8, type = "HC1", cluster = "group")
+linearHypothesis(reg8, c("factor(year)78=0","factor(year)79=0","factor(year)80=0","factor(year)81=0","factor(year)82=0","factor(year)83=0","factor(year)84=0","factor(year)85=0","factor(year)86=0","factor(year)87=0","factor(year)88=0","factor(year)89=0","factor(year)90=0","factor(year)91=0","factor(year)92=0","factor(year)93=0","factor(year)94=0","factor(year)95=0","factor(year)96=0","factor(year)97=0","factor(year)98=0","factor(year)99=0"), vcov=state_c_vcov.8, white.adjust="hc1", test=c("F"))
+```
+
+With fixed state effect added, the coefficient on shall changed to -0.0078. Useing heteroskedasticity-robust standard errors, we found that the coefficient, whose t-value is -0.143, is not statistically different from 0. This result proved that the previous regression suffers from omitted variable bias. Therefore, the regression with fixed state effects is more credible.
+When we add the time effect, the coefficient on shall further changed to -0.027. According to the result of t-test with heteroskedasticity-robust standard errors, this coefficient is not significantly different from 0. The coefficient on time variables are jointly statistically significant, so this model is better.
+
+
+```{r}
+#for ln(mur)
+reg9 <- lm(ln_mur~shall, data = guns)
+reg10 <- lm(ln_mur~shall+incarc_rate+density+avginc+pop+pb1064+pw1064+pm1029, data = guns) 
+reg11 <- plm(ln_mur~shall+incarc_rate+density+avginc+pop+pb1064+pw1064+pm1029, data = guns, index = c("stateid"), model = "within")
+reg12 <- plm(ln_mur~shall+incarc_rate+density+avginc+pop+pb1064+pw1064+pm1029+factor(year), data = guns, index = c("stateid", "year"), model = "within")
+coeftest(reg9, vcovHC(reg9, type = 'HC1', cluster = 'group'))
+coeftest(reg10, vcovHC(reg10, type = 'HC1', cluster = 'group'))
+coeftest(reg11, vcovHC(reg11, type = 'HC1', cluster = 'group'))
+coeftest(reg12, vcovHC(reg12, type = 'HC1', cluster = 'group'))
+state_c_vcov.12<-vcovHC(reg12, type = "HC1", cluster = "group")
+linearHypothesis(reg12, c("factor(year)78=0","factor(year)79=0","factor(year)80=0","factor(year)81=0","factor(year)82=0","factor(year)83=0","factor(year)84=0","factor(year)85=0","factor(year)86=0","factor(year)87=0","factor(year)88=0","factor(year)89=0","factor(year)90=0","factor(year)91=0","factor(year)92=0","factor(year)93=0","factor(year)94=0","factor(year)95=0","factor(year)96=0","factor(year)97=0","factor(year)98=0","factor(year)99=0"), vcov=state_c_vcov.12, white.adjust="hc1", test=c("F"))
+```
+With fixed state effect added, the coefficient on shall changed to -0.061. Useing heteroskedasticity-robust standard errors, we found that the coefficient, whose t-value is -1.66, is not significantly different from 0 at the 5% level, but significant at 10% level. This result proved that the previous regression may suffers from omitted variable bias. Therefore, the regression with fixed state effects is more credible.
+When we add the time effect, the coefficient on shall further changed to -0.015. According to the result of t-test with heteroskedasticity-robust standard errors, this coefficient is not significantly different from 0. The coefficient on time variables are jointly statistically significant, so this model is better.
+
+# e. In your view, what are the most important remaining threats to the internal validity of this regression analysis?
+
+It is possible that the high violent crime rate may leads more states to adopt the shall law, which creates two-way causality in the regression analysis.
+
+# f. Based on your analysis, what conclusions would you draw about the effects of concealed weapons laws on these crime rates?
+
+According to the reg4, which is the most reliable regression, the coefficient on shall is statistically insignificant. Therefore, there is no statistically significant evidence that concealed weapons laws have any effect on crime rates. 
+  
