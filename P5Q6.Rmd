@@ -1,0 +1,207 @@
+---
+title: "Problem Set 5 - Question 6"
+author: "Xuhui BAI"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+remove(list = ls())
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org") # run this the first time (only need to once)
+  library(tidyverse) # includes ggplot2 and many more useful libraries
+if(!require(knitr)) install.packages("knitr", repos = "http://cran.us.r-project.org")
+  library(knitr)
+if(!require(sandwich)) install.packages("sandwich", repos = "http://cran.us.r-project.org")
+  library(sandwich)
+if(!require(lmtest)) install.packages("lmtest", repos = "http://cran.us.r-project.org")
+  library(lmtest)
+if(!require(car)) install.packages("car", repos = "http://cran.us.r-project.org")
+  library(car)
+if(!require(plm)) install.packages("plm", repos = "http://cran.us.r-project.org")
+  library(plm)
+if(!require(AER)) install.packages("AER", repos = "http://cran.us.r-project.org")
+  library(AER)
+if(!require(stargazer)) install.packages("stargazer", repos = "http://cran.us.r-project.org")
+  library(stargazer)
+options(scipen = 200)
+movies<-read_csv("/Users/baixuhui/Downloads/movies.csv")
+```
+
+### a. (i) Regress the logarithm of the number of assaults [ln_assaults = ln(assaults)] on the year and month indicators. Is there evidence of seasonality in assaults? That is, do there tend to be more assaults in some months than others? Explain.
+
+```{r}
+
+movies <- movies %>% mutate(ln_assaults = log(assaults))
+reg1 <- lm(ln_assaults~year2+year3+year4+year5+year6+year7+year8+year9+year10+month2+month3+month4+month5+month6+month7+month8+month9+month10+month11+month12, data = movies)
+coeftest(reg1, vcov = vcovHC(reg1, type = "HC1"))
+linearHypothesis(reg1,c("month2=0","month3=0","month4=0","month5=0","month6=0","month7=0","month8=0","month9=0","month10=0","month11=0","month12=0"),white.adjust="hc1",test=c("F"))
+```
+
+According to the f-test result, we can find that the monthly regressors are jointly significant at the 1% level. So, we believe that the occurance of assaults is releated to season. In the regression result, we can see that assaults are more often in warm seasons, that is, spring, summer, and early autumn.
+
+### a. (b) Regress total movie attendance (attend = attend_v + attend_m + attend_n) on the year and month indicators. Is there evidence of seasonality in movie attendance? Explain.
+
+```{r}
+movies <- movies %>% mutate(attend = attend_v+attend_m+attend_n)
+reg2 <- lm(attend~year2+year3+year4+year5+year6+year7+year8+year9+year10+month2+month3+month4+month5+month6+month7+month8+month9+month10+month11+month12, data = movies)
+coeftest(reg2, vcov = vcovHC(reg2, type = "HC1"))
+linearHypothesis(reg2,c("month2=0","month3=0","month4=0","month5=0","month6=0","month7=0","month8=0","month9=0","month10=0","month11=0","month12=0"),white.adjust="hc1",test=c("F"))
+```
+
+According to the f-test result, we can find that the monthly regressors are jointly significant at the 1% level. So, we believe that the attendence to movies is releated to season. In the regression result, we can see that movie attendence are more often in summer.
+
+### b. Regress ln_assaults on attend_v, attend_m, attend_n, the year and month indicators, and the weather and holiday control variables available in the data set.
+
+```{r}
+reg3 <- lm(ln_assaults~attend_v+attend_m+attend_n+year2+year3+year4+year5+year6+year7+year8+year9+year10+month2+month3+month4+month5+month6+month7+month8+month9+month10+month11+month12+h_chris+h_newyr+h_easter+h_july4+h_mem+h_labor+w_maxa+w_maxb+w_maxc+w_mina+w_minb+w_minc+w_rain+w_snow, data = movies)
+coeftest(reg3, vcov = vcovHC(reg3, type = "HC1"))
+
+```
+### b. (i) Based on the regression, does viewing a strongly violent movie increase or decrease assaults? By how much? Is the estimated effect statistically significant?
+
+According to the result, viewing a strongly violent movie decreases assaults. For one unit increase in violent movie attendence, the occurence of assaults will drop by about 0.32%. This effect is significant at the 1% level because the t-stat is -3.14.
+
+### b. (ii) Does attendance at strongly violent movies affect assaults differently than attendance at moderately violent movies? Differently than attendance at nonviolent movies?
+
+```{r}
+linearHypothesis(reg3, c("attend_v-attend_m=0"), white.adjust = "hc1", test=c("F"))
+linearHypothesis(reg3, c("attend_v-attend_n=0"), white.adjust = "hc1", test=c("F"))
+```
+
+According to the result of f-test, the coefficients on attend_v, attend_m, and attend_n are not statistically significantly different from one another.
+
+### b. (iii) A strongly violent blockbuster movie is released, and the weekend's attendance at strongly violent movies increases by 6 million; meanwhile, attendance falls by 2 million for moderately violent movies and by 1 million for nonviolent movies. What is the predicted effect on assaults? Construct a 95% confidence interval for the change in assaults.
+
+```{r}
+# predicted effect
+pred_effect <- paste("predicted_effect = ",as.numeric(round(100*(reg3$coef[2]*6+reg3$coef[3]*(-2)+reg3$coef[4]*(-1)),2)),"%")
+pred_effect
+```
+
+The change in movie attendence made a decrease in assaults of 1.06%
+
+```{r}
+# Confidence Interval of 6βv -2βm - βn
+movies2 <- movies %>% mutate(vab1 = 6*attend_n+attend_v, vab2 = attend_m-2*attend_n)
+reg4 <- lm(ln_assaults~attend_n+vab1+vab2+year2+year3+year4+year5+year6+year7+year8+year9+year10+month2+month3+month4+month5+month6+month7+month8+month9+month10+month11+month12+h_chris+h_newyr+h_easter+h_july4+h_mem+h_labor+w_maxa+w_maxb+w_maxc+w_mina+w_minb+w_minc+w_rain+w_snow, data = movies2)
+coeftest(reg4, vcov = vcovHC(reg4, type = "HC1"))
+se <- 0.005
+beta <- as.numeric(reg4$coefficients[2])
+con_int <- cbind("Lower" = round(-beta-1.96*se, 5), "Upper" = round(-beta+1.96*se,5))
+con_int
+```
+
+In this case, I need to construct the confidence interval of (6βv -2βm - βn). So, I rearranged the regression model and made (-6βv + 2βm + βn), which is the inverse number of (6βv -2βm - βn), as the coefficient on attend_n. As the value of confidence interval of (-6βv + 2βm + βn) is also the inverse number of the interval of (6βv -2βm - βn), the confidence interval of (6βv -2βm - βn) can be computed as shown above.
+
+The confidence interval is [-0.02043, -0.00083]
+
+### c.
+
+```{r}
+reg5 <- ivreg(ln_assaults~attend_v+attend_m+attend_n+year1+year2+year3+year4+year5+year6+year7+year8+year9+month1+month2+month3+month4+month5+month6+month7+month8+month9+month10+month11+h_chris+h_newyr+h_easter+h_july4+h_mem+h_labor+w_maxa+w_maxb+w_maxc+w_mina+w_minb+w_minc+w_rain+w_snow | pr_attend_v+pr_attend_m+pr_attend_n+year2+year3+year4+year5+year6+year7+year8+year9+year10+month2+month3+month4+month5+month6+month7+month8+month9+month10+month11+month12+h_chris+h_newyr+h_easter+h_july4+h_mem+h_labor+w_maxa+w_maxb+w_maxc+w_mina+w_minb+w_minc+w_rain+w_snow, data = movies)
+coeftest(reg5, vcov = vcovHC(reg5, type = "HC1"))
+
+```
+
+### c.(i)
+
+An increase in strongly violent movie attendance of one million is predicted to reduce assaults by 0.39%. The coefficient is statistically significant at the 1% significance level.
+
+### c.(ii)
+
+```{r}
+linearHypothesis(reg5, c("attend_v-attend_m=0"), white.adjust = "hc1", test=c("F"))
+linearHypothesis(reg5, c("attend_v-attend_n=0"), white.adjust = "hc1", test=c("F"))
+```
+
+According to the result of f-test, the coefficients on attend_v, attend_m, and attend_n are not statistically significantly different from one another.
+
+### c.(iii)
+
+```{r}
+pred_effect2 <- paste("predicted_effect = ",as.numeric(round(100*(reg5$coef[2]*6+reg5$coef[3]*(-2)+reg5$coef[4]*(-1)),2)),"%")
+pred_effect2
+```
+The change in movie attendence made a decrease in assaults of 1.27%
+
+```{r}
+# Confidence Interval of 6βv -2βm - βn
+reg6 <- ivreg(ln_assaults~attend_n+vab1+vab2+year1+year2+year3+year4+year5+year6+year7+year8+year9+month1+month2+month3+month4+month5+month6+month7+month8+month9+month10+month11+h_chris+h_newyr+h_easter+h_july4+h_mem+h_labor+w_maxa+w_maxb+w_maxc+w_mina+w_minb+w_minc+w_rain+w_snow | pr_attend_v+pr_attend_m+pr_attend_n+year2+year3+year4+year5+year6+year7+year8+year9+year10+month2+month3+month4+month5+month6+month7+month8+month9+month10+month11+month12+h_chris+h_newyr+h_easter+h_july4+h_mem+h_labor+w_maxa+w_maxb+w_maxc+w_mina+w_minb+w_minc+w_rain+w_snow, data = movies2)
+coeftest(reg6, vcov = vcovHC(reg6, type = "HC1"))
+se2 <- 0.0048
+beta2 <- as.numeric(reg6$coef[2])
+con_int2 <- cbind("Lower" = round(-beta2-1.96*se2, 3), "Upper" = round(-beta2+1.96*se2,3))
+con_int2
+```
+
+The confidence interval is [-0.022, -0.003]
+
+### d.
+
+```{r}
+reg7 <- ivreg(ln_assaults~attend_v+attend_m+attend_n+year1+year2+year3+year4+year5+year6+year7+year8+year9+month1+month2+month3+month4+month5+month6+month7+month8+month9+month10+month11+h_chris+h_newyr+h_easter+h_july4+h_mem+h_labor+w_maxa+w_maxb+w_maxc+w_mina+w_minb+w_minc+w_rain+w_snow | attend_v_f+attend_m_f+attend_n_f+attend_v_b+attend_m_b+attend_n_b+year2+year3+year4+year5+year6+year7+year8+year9+year10+month2+month3+month4+month5+month6+month7+month8+month9+month10+month11+month12+h_chris+h_newyr+h_easter+h_july4+h_mem+h_labor+w_maxa+w_maxb+w_maxc+w_mina+w_minb+w_minc+w_rain+w_snow, data = movies)
+coeftest(reg7, vcov = vcovHC(reg7, type = "HC1"))
+```
+
+#### d.(i)
+
+An increase in strongly violent movie attendance of one million is predicted to reduce assaults by 0.317%. The coefficient is statistically significant at the 1% significance level.
+
+### d.(ii)
+
+```{r}
+linearHypothesis(reg7, c("attend_v-attend_m=0"), white.adjust = "hc1", test=c("F"))
+linearHypothesis(reg7, c("attend_v-attend_n=0"), white.adjust = "hc1", test=c("F"))
+```
+
+According to the result of f-test, the coefficients on attend_v, attend_m, and attend_n are not statistically significantly different from one another.
+
+### d.(iii)
+
+```{r}
+pred_effect3 <- paste("predicted_effect = ",as.numeric(round(100*(reg7$coef[2]*6+reg7$coef[3]*(-2)+reg7$coef[4]*(-1)),2)),"%")
+pred_effect3
+```
+
+The change in movie attendence made a decrease in assaults of 0.82%
+
+```{r}
+# Confidence Interval of 6βv -2βm - βn
+reg8 <- ivreg(ln_assaults~attend_n+vab1+vab2+year1+year2+year3+year4+year5+year6+year7+year8+year9+month1+month2+month3+month4+month5+month6+month7+month8+month9+month10+month11+h_chris+h_newyr+h_easter+h_july4+h_mem+h_labor+w_maxa+w_maxb+w_maxc+w_mina+w_minb+w_minc+w_rain+w_snow | attend_v_f+attend_m_f+attend_n_f+attend_v_b+attend_m_b+attend_n_b+year2+year3+year4+year5+year6+year7+year8+year9+year10+month2+month3+month4+month5+month6+month7+month8+month9+month10+month11+month12+h_chris+h_newyr+h_easter+h_july4+h_mem+h_labor+w_maxa+w_maxb+w_maxc+w_mina+w_minb+w_minc+w_rain+w_snow, data = movies2)
+coeftest(reg8, vcov = vcovHC(reg8, type = "HC1"))
+se3 <- 0.00885
+beta3 <- as.numeric(reg8$coef[2])
+con_int3 <- cbind("Lower" = round(-beta3-1.96*se3, 3), "Upper" = round(-beta3+1.96*se3,3))
+con_int3
+```
+
+The confidence interval is [-0.026, 0.009]
+
+### e. There are nine instruments listed in (c) and (d), but only three are needed for identification. Carry out the test for overidentification sum- marized in Key Concept 12.6.What do you conclude about the validity of the instruments?
+
+```{r}
+reg9 <- ivreg(ln_assaults~attend_v+attend_m+attend_n+year1+year2+year3+year4+year5+year6+year7+year8+year9+month1+month2+month3+month4+month5+month6+month7+month8+month9+month10+month11+h_chris+h_newyr+h_easter+h_july4+h_mem+h_labor+w_maxa+w_maxb+w_maxc+w_mina+w_minb+w_minc+w_rain+w_snow | pr_attend_v+pr_attend_m+pr_attend_n+attend_v_f+attend_m_f+attend_n_f+attend_v_b+attend_m_b+attend_n_b+year2+year3+year4+year5+year6+year7+year8+year9+year10+month2+month3+month4+month5+month6+month7+month8+month9+month10+month11+month12+h_chris+h_newyr+h_easter+h_july4+h_mem+h_labor+w_maxa+w_maxb+w_maxc+w_mina+w_minb+w_minc+w_rain+w_snow, data = movies)
+e <- resid(reg9)
+j <- lm(e~pr_attend_v+pr_attend_m+pr_attend_n+attend_v_f+attend_m_f+attend_n_f+attend_v_b+attend_m_b+attend_n_b+year2+year3+year4+year5+year6+year7+year8+year9+year10+month2+month3+month4+month5+month6+month7+month8+month9+month10+month11+month12+h_chris+h_newyr+h_easter+h_july4+h_mem+h_labor+w_maxa+w_maxb+w_maxc+w_mina+w_minb+w_minc+w_rain+w_snow, data = movies)
+j.F <- linearHypothesis(j, c("pr_attend_v=0", "pr_attend_m=0","pr_attend_n=0","attend_v_f=0","attend_m_f=0","attend_n_f=0","attend_v_b=0","attend_m_b=0","attend_n_b=0"), test="F") 
+m = 9 # m = the number of instrumental variables
+print(paste("j-stat = ",round(j.F[2,"F"]*m,4)))
+```
+
+The distribution of this j-stat follows the chi-square distribution with degree of overidentification = 6. The 10% critical value is 10.64, which is higher than j-stat. So, we cannot reject the null hypothesis that all instruments are exogenous.
+
+### f. Based on your analysis, what do you conclude about the effect of violent movies on (short-run) violent behavior?
+
+According to the results above, it can be concluded that the attendence of movie can reduce the occurance of assualts, while the effect of different type of movies seems to be the same, that is, watching violent movie will not have significantly different effect on assults relative to watching non-violate movies. In real world, people may replace behavior that can potentially lead to violence, such as drinking alcohle, with watching movies. So, attendence of movie can reduce the occurance of assualts.
+
+
+
+
+
+
+
+
+
+  

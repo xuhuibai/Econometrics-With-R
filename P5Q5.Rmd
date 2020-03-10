@@ -1,0 +1,149 @@
+---
+title: "Problem Set 5 - Question 5"
+author: "Xuhui BAI"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+remove(list = ls())
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org") # run this the first time (only need to once)
+  library(tidyverse) # includes ggplot2 and many more useful libraries
+if(!require(knitr)) install.packages("knitr", repos = "http://cran.us.r-project.org")
+  library(knitr)
+if(!require(sandwich)) install.packages("sandwich", repos = "http://cran.us.r-project.org")
+  library(sandwich)
+if(!require(lmtest)) install.packages("lmtest", repos = "http://cran.us.r-project.org")
+  library(lmtest)
+if(!require(car)) install.packages("car", repos = "http://cran.us.r-project.org")
+  library(car)
+if(!require(plm)) install.packages("plm", repos = "http://cran.us.r-project.org")
+  library(plm)
+Smoking <-read_csv('/Users/baixuhui/Downloads/Smoking.csv')
+```
+
+### a. Estimate the probability of smoking for (i) all workers, (ii) workers affected by workplace smoking bans, and (iii) workers not affected by workplace smoking bans.
+
+```{r}
+prob_all_worker <- paste("",round(mean(Smoking$smoker),2))
+a <- Smoking %>% filter(smkban == 1) %>% summarise(round(mean(smoker),2))
+b <- Smoking %>% filter(smkban == 0) %>% summarise(round(mean(smoker),2))
+prob_affected_worker <- paste("", a)
+prob_notaffected_worker <- paste("", b)
+summary <- rbind(prob_all_worker,prob_affected_worker,prob_notaffected_worker)
+summary
+```
+
+### b. What is the difference in the probability of smoking between workers affected by a workplace smoking ban and workers not affected by a workplace smoking ban? Use a linear probability model to determine whether this difference is statistically significant.
+
+```{r}
+reg1 <- lm(smoker~smkban, data = Smoking)
+coeftest(reg1, vcov = vcovHC(reg1, type = "HC1"))
+```
+
+From the test result,the difference is -0.07756 with a standard error of 0.009.The t-statistic is -8.664, which means the coefficient is statistically significant.
+
+### c.Estimate a linear probability model with smoker as the dependent variable and the following regressors: smkban, female, age, age^2, hsdrop, hsgrad, colsome, colgrad, black, and hispanic. Compare the estimated effect of a smoking ban from this regression with your answer from (b). Suggest an explanation, based on the substance of this regression, for the change in the estimated effect of a smoking ban between (b) and (c).
+
+```{r}
+Smoking2 <- Smoking %>% mutate(age2 = age^2)
+reg2 <- lm(smoker~smkban+female+age+age2+hsdrop+hsgrad+colsome+colgrad+black+hispanic, data = Smoking2)
+coeftest(reg2, vcov = vcovHC(reg2, type = "HC1"))
+linearHypothesis(reg2,c("female=0","age=0","age2=0","hsdrop=0","hsgrad=0","colsome=0","colgrad=0","black=0","hispanic=0"),white.adjust="hc1",test=c("F"))
+```
+
+1. The intercept becomes not significant when all the variables are included in the regression.
+2. The variables are jointly significant at 5% level.
+3. The coefficient on smkban, in this regression, is -0.047, which is smaller than the effect in the first regression. This difference is significant at the 5% level. So we can conclude that the coeffcient on smkban in (b) suffers from the omitted bias, and the smkban is correlated to other variables. For example, the worker who has graduated from college are more likely to work in a building that adopts the smoking ban than the worker who didn't complete college education.
+
+
+### d. Test the hypothesis that the coefficient on smkban is 0 in the population version of the regression in (c) against the alternative that it is nonzero, at the 5% significance level.
+
+According to the hypothesis test result presented in (c), the t-statistics is -5.2687. So, we can reject the null hypothesis that the coefficient on smkban is 0 at the 5% significance level.
+
+### e. Test the hypothesis that the probability of smoking does not depend on the level of education in the regression in (c). Does the probability of smoking increase or decrease with the level of education?
+
+```{r}
+linearHypothesis(reg2,c("hsdrop=0","hsgrad=0","colsome=0","colgrad=0"),white.adjust="hc1",test=c("F"))
+```
+
+The p-value of the F-test is close to 0, so the education-related coefficients are significant at the 1% level. The coefficient on hsdrop is 0.323, meaning the probability of smoking for a student dropped out from high school is 0.323 higher than those who at least complete high school. But the coefficient on colgrad is only 0.045. So the probability of smoking decrease with the level of education.
+
+### f. Repeat (c)-(e) using a probit model.
+
+```{r}
+reg3 <- glm(smoker~smkban+female+age+age2+hsdrop+hsgrad+colsome+colgrad+black+hispanic, data = Smoking2, family = binomial(link = "probit"))
+coeftest(reg3, vcov = vcovHC(reg3, type = "HC1"))
+linearHypothesis(reg3,c("female=0","age=0","age2=0","hsdrop=0","hsgrad=0","colsome=0","colgrad=0","black=0","hispanic=0"),white.adjust="hc1",test=c("F"))
+linearHypothesis(reg3,c("hsdrop=0","hsgrad=0","colsome=0","colgrad=0"),white.adjust="hc1",test=c("F"))
+```
+
+1. The estimated effect of the smoking ban in the probit model depends on the values of the other variable included in the regression. Because in probit method, the coefficients and regressors consist of z-value, which is used to determine the probability of smoke. However, the relation between z-value and probability is not linear, so, the effect of the ban depends on the value of other variables.
+2. The variables are jointly significant at 5% level.
+3. The the t-statistics for coefficient on smkban is -5.437. So, we can reject the null hypothesis that the coefficient on smkban is 0 at the 5% significance level.
+4. The p-value of the F-test is close to 0, so the education-related coefficients are significant at the 1% level. 
+
+### g. Repeat (c)-(e) using a logit model.
+```{r}
+reg4 <- glm(smoker~smkban+female+age+age2+hsdrop+hsgrad+colsome+colgrad+black+hispanic, data = Smoking2, family = binomial(link = "logit"))
+coeftest(reg4, vcov = vcovHC(reg4, type = "HC1"))
+linearHypothesis(reg4,c("female=0","age=0","age2=0","hsdrop=0","hsgrad=0","colsome=0","colgrad=0","black=0","hispanic=0"),white.adjust="hc1",test=c("F"))
+linearHypothesis(reg4,c("hsdrop=0","hsgrad=0","colsome=0","colgrad=0"),white.adjust="hc1",test=c("F"))
+```
+
+1. As discussed in (f), the estimated effect of the smoking ban in the logit model depends on the values of the other variable included in the regression. Because in probit method, the coefficients and regressors consist of power of e, which is used to determine the probability of smoke. However, the relation is not linear, so, the effect of the ban depends on the value of other variables.
+2. The variables are jointly significant at 5% level.
+3. The the t-statistics for coefficient on smkban is -5.293. So, we can reject the null hypothesis that the coefficient on smkban is 0 at the 5% significance level.
+4. The p-value of the F-test is close to 0, so the education-related coefficients are significant at the 1% level. 
+
+### h. 
+
+```{r}
+#i & ii
+z1 <- reg3$coef[1]+reg3$coef[4]*20+reg3$coef[5]*400+reg3$coef[6]*1
+prob_A_noban <- pnorm(z1)
+z2 <- reg3$coef[1]+reg3$coef[2]*1+reg3$coef[4]*20+reg3$coef[5]*400+reg3$coef[6]*1
+prob_A_ban <- pnorm(z2)
+z3 <- reg3$coef[1]+reg3$coef[3]*1+reg3$coef[4]*40+reg3$coef[5]*1600+reg3$coef[9]*1+reg3$coef[10]*1
+prob_B_noban <- pnorm(z3)
+z4 <- reg3$coef[1]+reg3$coef[2]*1+reg3$coef[3]*1+reg3$coef[4]*40+reg3$coef[5]*1600+reg3$coef[9]*1+reg3$coef[10]*1
+prob_B_ban <- pnorm(z4)
+
+#iii
+z5 <- reg2$coef[1]+reg2$coef[4]*20+reg2$coef[5]*400+reg2$coef[6]*1
+prob_A_noban2 <- z5
+z6 <- reg2$coef[1]+reg2$coef[2]*1+reg2$coef[4]*20+reg2$coef[5]*400+reg2$coef[6]*1
+prob_A_ban2 <- z6
+z7 <- reg2$coef[1]+reg2$coef[3]*1+reg2$coef[4]*40+reg2$coef[5]*1600+reg2$coef[9]*1+reg2$coef[10]*1
+prob_B_noban2<- z7
+z8 <- reg2$coef[1]+reg2$coef[2]*1+reg2$coef[3]*1+reg2$coef[4]*40+reg2$coef[5]*1600+reg2$coef[9]*1+reg2$coef[10]*1
+prob_B_ban2 <- z8
+
+# iv
+z9 <- reg4$coef[1]+reg4$coef[4]*20+reg4$coef[5]*400+reg4$coef[6]*1
+prob_A_noban3 <- exp(z9)/(1+exp(z9))
+z10 <- reg4$coef[1]+reg4$coef[2]*1+reg4$coef[4]*20+reg4$coef[5]*400+reg4$coef[6]*1
+prob_A_ban3 <- exp(z1)/(1+exp(z10))
+z11 <- reg4$coef[1]+reg4$coef[3]*1+reg4$coef[4]*40+reg4$coef[5]*1600+reg4$coef[9]*1+reg4$coef[10]*1
+prob_B_noban3<- exp(z11)/(1+exp(z11))
+z12 <- reg4$coef[1]+reg4$coef[2]*1+reg4$coef[3]*1+reg4$coef[4]*40+reg4$coef[5]*1600+reg4$coef[9]*1+reg4$coef[10]*1
+prob_B_ban3 <-exp(z12)/(1+exp(z12))
+
+A_noban <- cbind(prob_A_noban, prob_A_noban2, prob_A_noban3)
+A_ban <- cbind(prob_A_ban, prob_A_ban2, prob_A_ban3)
+B_noban <- cbind(prob_B_noban, prob_B_noban2, prob_B_noban3)
+B_ban <- cbind(prob_B_ban, prob_B_ban2, prob_B_ban3)
+result <- rbind(A_noban, A_ban, B_noban, B_ban)
+
+colnames(result)<-c("Probit", "Linear", "Logit")
+row.names(result)<-c("A_noban", "A_ban", "B_noban", "B_ban")
+result
+
+```
+
+The summary of probability calculated through linear, probit, and logit model has been presented in the chart above. In the result for linear model, the effect of smoking ban on A is the same with that on B (Both are 0.047). This is because the linear model assumes that the effect of one variable is independent on other variables, while probit and logit model assume the effect of smoking ban is dependent on the value of other variables. In probit model, the different personal characteristics of Mr.A and Ms.B are incorporated into the impact of the laws on the probability of smoking. And this is also true in logit model. Therefore, the probit and logit model are likely more appropriate, and they give very similar answers.
+I believe that the effect is large in real world, where there are millions of people sharing the similar peosonal characteristics with Mr.A or Ms.B. So, according to the result for probit model, the implementation of smoking ban leads to reduction of 6% on the probability of smoking, which, in real world, means about 6% of the millions people stop smoking due to the ban. That's a big number.
+
+  
